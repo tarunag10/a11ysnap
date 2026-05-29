@@ -42,7 +42,7 @@ npm run worker
 npm run web:dev
 ```
 
-Set `VITE_WORKER_URL=http://127.0.0.1:3001` if the worker is not running on the
+Set `VITE_WORKER_URL=http://127.0.0.1:4317` if the worker is not running on the
 frontend default.
 
 ## Current Limits

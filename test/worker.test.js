@@ -41,6 +41,29 @@ async function readSseEvents(response) {
 }
 
 describe("worker API", () => {
+  it("handles browser CORS preflight and exposes CORS headers", async () => {
+    const app = createWorkerApp({ runPipeline: async () => ({ summary: {} }) });
+
+    await withServer(app, async (baseUrl) => {
+      const preflight = await fetch(`${baseUrl}/scans`, {
+        method: "OPTIONS",
+        headers: {
+          origin: "http://localhost:5173",
+          "access-control-request-method": "POST",
+          "access-control-request-headers": "content-type",
+        },
+      });
+
+      assert.equal(preflight.status, 204);
+      assert.equal(preflight.headers.get("access-control-allow-origin"), "*");
+      assert.match(preflight.headers.get("access-control-allow-methods"), /POST/);
+      assert.match(preflight.headers.get("access-control-allow-headers"), /content-type/i);
+
+      const response = await fetch(`${baseUrl}/scans/not-found`);
+      assert.equal(response.headers.get("access-control-allow-origin"), "*");
+    });
+  });
+
   it("rejects missing, invalid, and private URLs", async () => {
     const app = createWorkerApp({ runPipeline: async () => ({ summary: {} }) });
 
@@ -65,6 +88,31 @@ describe("worker API", () => {
         body: JSON.stringify({ url: "http://localhost:3000" }),
       });
       assert.equal(privateHost.status, 400);
+    });
+  });
+
+  it("uses the shared scan config validator for API requests", async () => {
+    const app = createWorkerApp({ runPipeline: async () => ({ summary: {} }) });
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/scans`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: "https://example.com",
+          maxPages: 0,
+          concurrency: 0,
+          viewport: "wide",
+          level: "BAD",
+        }),
+      });
+      const body = await response.json();
+
+      assert.equal(response.status, 400);
+      assert.match(body.error, /Invalid WCAG level/);
+      assert.match(body.error, /maxPages must be/);
+      assert.match(body.error, /concurrency must be/);
+      assert.match(body.error, /Invalid viewport/);
     });
   });
 

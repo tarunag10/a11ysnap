@@ -1,7 +1,13 @@
 import { createServer } from "node:http";
+import { validateConfig as validateScanConfig } from "../config.js";
 import { ScanStore } from "./scan-store.js";
 
-const JSON_CONTENT_TYPE = { "content-type": "application/json; charset=utf-8" };
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
+const JSON_CONTENT_TYPE = { "content-type": "application/json; charset=utf-8", ...CORS_HEADERS };
 const PRIVATE_IPV4_RANGES = [
   [[10, 0, 0, 0], [10, 255, 255, 255]],
   [[127, 0, 0, 0], [127, 255, 255, 255]],
@@ -38,6 +44,12 @@ async function routeRequest(req, res, context) {
   const scanIdMatch = url.pathname.match(/^\/scans\/([^/]+)$/);
   const eventsMatch = url.pathname.match(/^\/scans\/([^/]+)\/events$/);
 
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, CORS_HEADERS);
+    res.end();
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/scans") {
     return createScan(req, res, context);
   }
@@ -65,13 +77,12 @@ async function createScan(req, res, { runPipeline, allowPrivateHosts, defaultCon
     return sendJson(res, 400, { error: "Request body must be valid JSON" });
   }
 
-  const config = { ...defaultConfig, ...body };
-  const validation = validateConfig(config, { allowPrivateHosts });
+  const validation = validateConfig({ ...defaultConfig, ...body }, { allowPrivateHosts });
   if (!validation.ok) {
     return sendJson(res, 400, { error: validation.error });
   }
 
-  const scan = store.create(config);
+  const scan = store.create(validation.config);
   queueMicrotask(() => runScan(scan.id, runPipeline, store));
   return sendJson(res, 202, { id: scan.id, status: scan.status });
 }
@@ -121,6 +132,7 @@ function streamEvents(req, res, store, id) {
     "content-type": "text/event-stream",
     "cache-control": "no-cache, no-transform",
     connection: "keep-alive",
+    ...CORS_HEADERS,
   });
 
   const writeEvent = (event) => {
@@ -177,26 +189,24 @@ async function readJson(req) {
 }
 
 function validateConfig(config, { allowPrivateHosts }) {
-  if (!config.url || typeof config.url !== "string") {
-    return { ok: false, error: "Missing required url" };
-  }
-
   let parsed;
   try {
     parsed = new URL(config.url);
   } catch {
-    return { ok: false, error: "Invalid url" };
+    parsed = null;
   }
 
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    return { ok: false, error: "URL protocol must be http or https" };
+  const sharedValidation = validateScanConfig(config);
+  if (!sharedValidation.ok) {
+    return { ok: false, error: sharedValidation.errors.join(" ") };
   }
+  parsed ??= new URL(sharedValidation.config.url);
 
   if (!allowPrivateHosts && isPrivateHostname(parsed.hostname)) {
     return { ok: false, error: "Private and localhost URLs are disabled" };
   }
 
-  return { ok: true };
+  return { ok: true, config: sharedValidation.config };
 }
 
 function isPrivateHostname(hostname) {

@@ -5,7 +5,7 @@ import { createWorkerApp } from "./server.js";
 export { ScanStore, createWorkerApp };
 
 export async function startWorkerServer({
-  port = Number(process.env.PORT || 3001),
+  port = Number(process.env.PORT || 4317),
   host = process.env.HOST || "127.0.0.1",
   allowPrivateHosts = process.env.ALLYSNAP_ALLOW_PRIVATE_HOSTS === "true",
   defaultConfig = {},

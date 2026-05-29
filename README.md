@@ -43,7 +43,7 @@ Run the scan worker locally:
 npm run worker
 ```
 
-The worker listens on `http://127.0.0.1:3001` by default. Set `PORT`,
+The worker listens on `http://127.0.0.1:4317` by default. Set `PORT`,
 `HOST`, or `ALLYSNAP_ALLOW_PRIVATE_HOSTS=true` when you need a different local
 binding or want to scan private development hosts.
 
@@ -64,7 +64,7 @@ The web UI lives in `web/` and talks to the worker API.
 
 ```bash
 npm --prefix web install
-VITE_WORKER_URL=http://127.0.0.1:3001 npm run web:dev
+npm run web:dev
 ```
 
 The first screen is the scan console. It includes live progress, dashboard
