@@ -35,6 +35,56 @@ a11ysnap https://example.com \
 a11ysnap https://example.com --no-screenshots --format json
 ```
 
+## Worker API
+
+Run the scan worker locally:
+
+```bash
+npm run worker
+```
+
+The worker listens on `http://127.0.0.1:3001` by default. Set `PORT`,
+`HOST`, or `ALLYSNAP_ALLOW_PRIVATE_HOSTS=true` when you need a different local
+binding or want to scan private development hosts.
+
+Endpoints:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/scans` | Start a scan. Body uses the same core options as the CLI. |
+| `GET` | `/scans/:id` | Read scan status, events, summary, and result payload. |
+| `GET` | `/scans/:id/events` | Stream scan progress events over SSE. |
+| `DELETE` | `/scans/:id` | Request cancellation for queued/running scans. |
+
+By default the API rejects localhost and private-host scans as an SSRF guard.
+
+## Web App
+
+The web UI lives in `web/` and talks to the worker API.
+
+```bash
+npm --prefix web install
+VITE_WORKER_URL=http://127.0.0.1:3001 npm run web:dev
+```
+
+The first screen is the scan console. It includes live progress, dashboard
+metrics, severity/page filters, page breakdowns, and a demo-data mode for UI
+inspection without a running worker.
+
+## Testing
+
+```bash
+npm test          # default non-browser suite
+npm run web:build # production frontend build
+```
+
+The Playwright-backed auditor integration test is opt-in because some local
+environments can hang while importing or launching Chromium:
+
+```bash
+npm run test:browser
+```
+
 ## Options
 
 | Flag | Default | Description |

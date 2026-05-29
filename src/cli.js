@@ -1,5 +1,6 @@
 import { program } from "commander";
 import { setVerbose, error } from "./utils/logger.js";
+import { validateConfig } from "./config.js";
 
 const parseIntSafe = (v) => parseInt(v, 10);
 
@@ -23,30 +24,7 @@ program
   .action(async (url, options) => {
     setVerbose(options.verbose || false);
 
-    if (!["A", "AA", "AAA"].includes(options.level)) {
-      error(`Invalid WCAG level "${options.level}". Must be A, AA, or AAA.`);
-      process.exit(2);
-    }
-
-    if (!["html", "json", "both"].includes(options.format)) {
-      error(`Invalid format "${options.format}". Must be html, json, or both.`);
-      process.exit(2);
-    }
-
-    try {
-      new URL(url);
-    } catch {
-      error(`Invalid URL: "${url}"`);
-      process.exit(2);
-    }
-
-    const [width, height] = options.viewport.split("x").map(Number);
-    if (!width || !height) {
-      error(`Invalid viewport "${options.viewport}". Use format WxH, e.g. 1280x720.`);
-      process.exit(2);
-    }
-
-    const config = {
+    const validation = validateConfig({
       url,
       depth: options.depth,
       maxPages: options.maxPages,
@@ -57,14 +35,21 @@ program
       outputDir: options.output,
       format: options.format,
       screenshots: options.screenshots,
-      viewport: { width, height },
+      viewport: options.viewport,
       timeout: options.timeout,
       verbose: options.verbose || false,
-    };
+    });
+
+    if (!validation.ok) {
+      for (const message of validation.errors) {
+        error(message);
+      }
+      process.exit(2);
+    }
 
     const { runPipeline } = await import("./pipeline.js");
-    const exitCode = await runPipeline(config);
-    process.exit(exitCode);
+    const result = await runPipeline(validation.config);
+    process.exit(result.exitCode);
   });
 
 program.parse();

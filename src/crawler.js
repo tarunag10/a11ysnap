@@ -2,6 +2,24 @@ import { readFile } from "node:fs/promises";
 import { normalizeUrl, isSameOrigin, deduplicateUrls } from "./utils/url-utils.js";
 import { debug, warn, info } from "./utils/logger.js";
 
+function decodeXmlEntities(value) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function extractLocValues(xml, parentTag) {
+  const blockRegex = new RegExp(`<${parentTag}[^>]*>[\\s\\S]*?<\\/${parentTag}>`, "gi");
+  const locRegex = /<loc[^>]*>([\s\S]*?)<\/loc>/i;
+  return [...xml.matchAll(blockRegex)]
+    .map((block) => block[0].match(locRegex)?.[1]?.trim())
+    .filter(Boolean)
+    .map(decodeXmlEntities);
+}
+
 export function extractLinks(html, baseUrl) {
   const linkRegex = /href\s*=\s*["']([^"']+)["']/gi;
   const links = [];
@@ -29,28 +47,31 @@ export async function discoverFromFile(filePath) {
     .filter(Boolean);
 }
 
-export async function discoverFromSitemap(sitemapUrl) {
+export async function discoverFromSitemap(sitemapUrl, options = {}) {
   debug(`Fetching sitemap: ${sitemapUrl}`);
   const resp = await fetch(sitemapUrl);
-  if (!resp.ok) throw new Error(`Failed to fetch sitemap: ${resp.status}`);
+  if (!resp.ok) throw new Error(`Failed to fetch sitemap ${sitemapUrl}: ${resp.status}`);
   const xml = await resp.text();
 
   // Check if this is a sitemap index
-  const sitemapRefs = [...xml.matchAll(/<sitemap>\s*<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]);
+  const sitemapRefs = extractLocValues(xml, "sitemap");
   if (sitemapRefs.length > 0) {
     debug(`Found sitemap index with ${sitemapRefs.length} sitemaps`);
     const allUrls = [];
     for (const ref of sitemapRefs) {
-      const urls = await discoverFromSitemap(ref);
+      const urls = await discoverFromSitemap(ref, options);
       allUrls.push(...urls);
     }
     return deduplicateUrls(allUrls);
   }
 
   // Regular sitemap — extract <loc> URLs
-  const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]);
+  const urls = extractLocValues(xml, "url");
   debug(`Found ${urls.length} URLs in sitemap`);
-  return deduplicateUrls(urls);
+  const filtered = options.origin
+    ? urls.filter((candidate) => isSameOrigin(candidate, options.origin))
+    : urls;
+  return deduplicateUrls(filtered);
 }
 
 export async function autoCrawl(startUrl, page, { maxDepth, maxPages, origin }) {

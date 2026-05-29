@@ -7,12 +7,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function generateSummary(results) {
   const bySeverity = { critical: 0, serious: 0, moderate: 0, minor: 0 };
   let totalViolations = 0;
+  let totalNodes = 0;
   let pagesWithViolations = 0;
+  let pagesWithErrors = 0;
 
   for (const page of results) {
     if (page.violations.length > 0) pagesWithViolations++;
+    if (page.error) pagesWithErrors++;
     for (const v of page.violations) {
       totalViolations++;
+      totalNodes += v.nodes.length;
       if (bySeverity[v.impact] !== undefined) {
         bySeverity[v.impact]++;
       }
@@ -22,7 +26,9 @@ export function generateSummary(results) {
   return {
     totalPages: results.length,
     totalViolations,
+    totalNodes,
     pagesWithViolations,
+    pagesWithErrors,
     bySeverity,
   };
 }
@@ -107,7 +113,9 @@ export async function generateHtmlReport(results, outputDir, level) {
     pagesHtml += `<div class="page-section">`;
     pagesHtml += `<h3>${escapeHtml(page.pageTitle || page.url)}</h3>`;
     pagesHtml += `<p style="font-size:13px;color:#888;">URL: ${escapeHtml(page.url)} | Load: ${page.loadTimeMs}ms | Violations: ${page.violations.length}</p>`;
-    if (page.violations.length === 0) {
+    if (page.error) {
+      pagesHtml += `<p style="color:#d32f2f;"><strong>Scan error:</strong> ${escapeHtml(page.error)}</p>`;
+    } else if (page.violations.length === 0) {
       pagesHtml += `<p style="color:green;">No violations found.</p>`;
     }
     for (const v of page.violations) {
@@ -117,16 +125,16 @@ export async function generateHtmlReport(results, outputDir, level) {
   }
 
   template = template
-    .replace("{{TIMESTAMP}}", new Date().toISOString())
-    .replace("{{LEVEL}}", level)
-    .replace("{{TOTAL_PAGES}}", String(summary.totalPages))
-    .replace("{{CRITICAL}}", String(summary.bySeverity.critical))
-    .replace("{{SERIOUS}}", String(summary.bySeverity.serious))
-    .replace("{{MODERATE}}", String(summary.bySeverity.moderate))
-    .replace("{{MINOR}}", String(summary.bySeverity.minor))
-    .replace("{{TOTAL_VIOLATIONS}}", String(summary.totalViolations))
-    .replace("{{VIOLATIONS_HTML}}", violationsHtml)
-    .replace("{{PAGES_HTML}}", pagesHtml);
+    .replaceAll("{{TIMESTAMP}}", new Date().toISOString())
+    .replaceAll("{{LEVEL}}", level)
+    .replaceAll("{{TOTAL_PAGES}}", String(summary.totalPages))
+    .replaceAll("{{CRITICAL}}", String(summary.bySeverity.critical))
+    .replaceAll("{{SERIOUS}}", String(summary.bySeverity.serious))
+    .replaceAll("{{MODERATE}}", String(summary.bySeverity.moderate))
+    .replaceAll("{{MINOR}}", String(summary.bySeverity.minor))
+    .replaceAll("{{TOTAL_VIOLATIONS}}", String(summary.totalViolations))
+    .replaceAll("{{VIOLATIONS_HTML}}", violationsHtml)
+    .replaceAll("{{PAGES_HTML}}", pagesHtml);
 
   return template;
 }

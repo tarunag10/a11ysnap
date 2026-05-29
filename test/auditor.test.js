@@ -1,15 +1,19 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright";
-import { auditPage } from "../src/auditor.js";
 import path from "node:path";
 
 const fixturesDir = path.join(import.meta.dirname, "fixtures");
+const runBrowserTests = process.env.ALLYSNAP_BROWSER_TESTS === "1";
 
-describe("auditPage", () => {
+describe("auditPage", { skip: !runBrowserTests }, () => {
   let browser;
+  let auditPage;
 
   before(async () => {
+    const playwright = await import("playwright");
+    const auditor = await import("../src/auditor.js");
+    auditPage = auditor.auditPage;
+    const { chromium } = playwright;
     browser = await chromium.launch();
   });
 

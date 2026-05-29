@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { generateJsonReport } from "../src/reporter/json-reporter.js";
-import { generateSummary } from "../src/reporter/html-reporter.js";
+import { generateHtmlReport, generateSummary } from "../src/reporter/html-reporter.js";
 
 const mockResults = [
   {
@@ -37,15 +37,26 @@ const mockResults = [
     screenshotPath: null,
     violations: [],
   },
+  {
+    url: "https://example.com/error",
+    timestamp: "2026-03-31T00:00:02.000Z",
+    pageTitle: "Error",
+    loadTimeMs: 0,
+    screenshotPath: null,
+    violations: [],
+    error: "Navigation failed <script>",
+  },
 ];
 
 describe("generateJsonReport", () => {
   it("produces valid JSON with all results", () => {
     const json = generateJsonReport(mockResults);
     const parsed = JSON.parse(json);
-    assert.equal(parsed.pages.length, 2);
-    assert.equal(parsed.summary.totalPages, 2);
+    assert.equal(parsed.pages.length, 3);
+    assert.equal(parsed.summary.totalPages, 3);
     assert.equal(parsed.summary.totalViolations, 2);
+    assert.equal(parsed.summary.totalNodes, 2);
+    assert.equal(parsed.summary.pagesWithErrors, 1);
     assert.ok(parsed.summary.bySeverity.critical >= 1);
     assert.ok(parsed.summary.bySeverity.serious >= 1);
   });
@@ -54,12 +65,24 @@ describe("generateJsonReport", () => {
 describe("generateSummary", () => {
   it("computes correct summary statistics", () => {
     const summary = generateSummary(mockResults);
-    assert.equal(summary.totalPages, 2);
+    assert.equal(summary.totalPages, 3);
     assert.equal(summary.totalViolations, 2);
+    assert.equal(summary.totalNodes, 2);
     assert.equal(summary.pagesWithViolations, 1);
+    assert.equal(summary.pagesWithErrors, 1);
     assert.equal(summary.bySeverity.critical, 1);
     assert.equal(summary.bySeverity.serious, 1);
     assert.equal(summary.bySeverity.moderate, 0);
     assert.equal(summary.bySeverity.minor, 0);
+  });
+});
+
+describe("generateHtmlReport", () => {
+  it("renders escaped page errors in the page breakdown", async () => {
+    const html = await generateHtmlReport(mockResults, "/tmp/a11ysnap-test", "AA");
+
+    assert.match(html, /Scan error/);
+    assert.match(html, /Navigation failed &lt;script&gt;/);
+    assert.doesNotMatch(html, /Navigation failed <script>/);
   });
 });

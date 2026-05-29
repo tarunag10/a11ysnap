@@ -7,7 +7,12 @@
     "a11ysnap": "./bin/a11ysnap.js"
   },
   "scripts": {
-    "test": "node --test test/**/*.test.js"
+    "test": "node --test test/**/*.test.js",
+    "test:fast": "node --test test/config.test.js test/url-utils.test.js test/crawler.test.js test/reporter.test.js test/pipeline.test.js test/worker.test.js",
+    "test:browser": "ALLYSNAP_BROWSER_TESTS=1 node --test test/auditor.test.js",
+    "worker": "node src/worker/index.js",
+    "web:build": "npm --prefix web run build",
+    "web:dev": "npm --prefix web run dev"
   },
   "keywords": [
     "accessibility",
